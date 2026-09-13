@@ -3,64 +3,139 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Agent API Hub · CLI Agent 供应商接入面板</title>
+  <title>Agent API Hub · 供应商管理</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header class="topbar">
+  <aside class="sidebar">
     <div class="brand">
       <div class="logo">⚡</div>
-      <div>
-        <h1>Agent API Hub</h1>
-        <p class="subtitle">把任意 OpenAI / Anthropic / Gemini 兼容 API,一键接入本地 CLI Agent</p>
+      <div class="brand-text"><b>Agent API Hub</b><span>CLI 供应商接入</span></div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item active" href="#" id="navMain">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        供应商管理
+      </a>
+      <a class="nav-item" href="#" id="navGuide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        快速上手
+      </a>
+      <a class="nav-item" href="#" id="navHow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        工作原理
+      </a>
+    </nav>
+    <div class="sidebar-foot">
+      <a class="nav-item" href="https://github.com/liuguanyi688-del/agent-api-hub" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.75 2.69 1.25 3.34.95.1-.74.4-1.25.72-1.53-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.14 0 1.54-.01 2.79-.01 3.17 0 .31.21.67.8.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"/></svg>
+        GitHub 仓库
+      </a>
+      <button class="nav-item" id="themeToggle">
+        <svg id="themeIconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="hidden"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <span id="themeText">浅色模式</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="layout">
+    <header class="topbar">
+      <div class="page-title">
+        <h1>供应商管理</h1>
+        <p>管理接入 Claude Code / Codex / Gemini CLI 的 API 供应商</p>
       </div>
-    </div>
-    <div id="statusChips" class="chips" aria-label="各 CLI 当前接入状态"></div>
-  </header>
+      <div id="statusChips" class="chips" aria-label="各 CLI 当前接入状态"></div>
+    </header>
 
-  <main>
-    <div class="toolbar">
-      <nav id="tabs" class="tabs" aria-label="按目标筛选"></nav>
-      <button id="addBtn" class="btn primary">＋ 添加供应商</button>
-    </div>
+    <main>
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="searchbox">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="searchInput" placeholder="搜索名称或 Base URL..." spellcheck="false" />
+          </div>
+          <select id="filterTarget">
+            <option value="all">全部目标</option>
+            <option value="claude">Claude Code</option>
+            <option value="codex">Codex CLI</option>
+            <option value="gemini">Gemini CLI</option>
+          </select>
+          <select id="filterStatus">
+            <option value="all">全部状态</option>
+            <option value="active">当前使用</option>
+            <option value="idle">未启用</option>
+          </select>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn ghost icon-only" id="refreshBtn" title="刷新列表">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+          <button class="btn primary" id="addBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            添加供应商
+          </button>
+        </div>
+      </div>
 
-    <section id="grid" class="grid" aria-live="polite"></section>
+      <div class="table-wrap">
+        <table class="ptable">
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>目标</th>
+              <th>Base URL</th>
+              <th>API Key</th>
+              <th>状态</th>
+              <th>测试</th>
+              <th class="th-ops">操作</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <div id="tableEmpty" class="table-empty hidden">
+          <div class="empty-icon">🔌</div>
+          <h2>还没有供应商</h2>
+          <p>添加一个 API 供应商(官方或中转站地址均可),点「启用」即可写入对应 CLI 的配置文件。</p>
+          <button class="btn primary" onclick="openEdit()">添加第一个供应商</button>
+        </div>
+      </div>
 
-    <section id="empty" class="empty hidden">
-      <div class="empty-icon">🔌</div>
-      <h2>还没有供应商</h2>
-      <p>添加一个 API 供应商(官方或中转站地址均可),然后点「启用」即可写入对应 CLI 的配置文件。</p>
-      <button class="btn primary" onclick="openEdit()">添加第一个供应商</button>
-    </section>
+      <div class="table-foot">
+        <span id="resultInfo">共 0 个供应商</span>
+        <span class="foot-right">本地服务 · 127.0.0.1:8317</span>
+      </div>
 
-    <details class="help">
-      <summary>它的工作原理 &amp; 安全说明</summary>
-      <div class="help-body">
-        <pre class="flow">你的 CLI Agent(Claude Code / Codex / Gemini CLI)
+      <details class="help" id="helpBlock">
+        <summary>快速上手 &amp; 工作原理 &amp; 安全说明</summary>
+        <div class="help-body">
+          <p><b>四步接入:</b>① 「添加供应商」填 Base URL 和 Key → ② 点「测试」验证鉴权 → ③ 点「预览」确认将写入的内容 → ④ 点「启用」,重启 CLI 会话生效。点状态徽章上的 ↺ 可恢复 CLI 官方默认。</p>
+          <pre class="flow">你的 CLI Agent(Claude Code / Codex / Gemini CLI)
         │  读取固定路径的配置文件(见下表)
         ▼
 Agent API Hub 面板 ── 启用 ──► 合并写入对应配置文件(写前自动备份为 *.apihub.bak)
         │
         ▼
 请求按你填的 Base URL + API Key 发往上游(官方 / 中转站)</pre>
-        <table class="files">
-          <thead><tr><th>目标 CLI</th><th>配置文件</th><th>写入的键</th></tr></thead>
-          <tbody>
-            <tr><td>Claude Code</td><td><code>~/.claude/settings.json</code></td><td><code>env.ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_MODEL</code></td></tr>
-            <tr><td>Codex CLI</td><td><code>~/.codex/config.toml</code> + <code>auth.json</code></td><td>顶部管理块 <code>model_provider</code> + <code>[model_providers.apihub]</code>;<code>auth.json</code> 的 <code>OPENAI_API_KEY</code></td></tr>
-            <tr><td>Gemini CLI</td><td><code>~/.gemini/.env</code></td><td><code>GEMINI_API_KEY / GOOGLE_GEMINI_BASE_URL / GEMINI_MODEL</code></td></tr>
-          </tbody>
-        </table>
-        <ul>
-          <li>合并写入:只增改本工具管理的键,你已有的其他配置一律保留;每次写入前滚动备份一份 <code>*.apihub.bak</code>。</li>
-          <li>供应商列表保存在本地 <code>data/providers.json</code>,API Key 明文存储 —— 这是单机小工具的取舍,请勿把项目目录分享给他人。</li>
-          <li>「测试」会向上游发一个真实的小请求验证鉴权(GET /v1/models,失败则退化为 1 token 对话请求),几乎不产生费用。</li>
-          <li>本服务只监听 127.0.0.1,不对外网开放。</li>
-        </ul>
-      </div>
-    </details>
-  </main>
+          <table class="files">
+            <thead><tr><th>目标 CLI</th><th>配置文件</th><th>写入的键</th></tr></thead>
+            <tbody>
+              <tr><td>Claude Code</td><td><code>~/.claude/settings.json</code></td><td><code>env.ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_MODEL</code></td></tr>
+              <tr><td>Codex CLI</td><td><code>~/.codex/config.toml</code> + <code>auth.json</code></td><td>顶部管理块 <code>model_provider</code> + <code>[model_providers.apihub]</code>;<code>auth.json</code> 的 <code>OPENAI_API_KEY</code></td></tr>
+              <tr><td>Gemini CLI</td><td><code>~/.gemini/.env</code></td><td><code>GEMINI_API_KEY / GOOGLE_GEMINI_BASE_URL / GEMINI_MODEL</code></td></tr>
+            </tbody>
+          </table>
+          <ul>
+            <li>合并写入:只增改本工具管理的键,你已有的其他配置一律保留;每次写入前滚动备份一份 <code>*.apihub.bak</code>。</li>
+            <li>供应商列表保存在本地 <code>data/providers.json</code>,API Key 明文存储 —— 这是单机小工具的取舍,请勿把项目目录分享给他人。</li>
+            <li>「测试」会向上游发一个真实的小请求验证鉴权(GET /v1/models,失败则退化为 1 token 对话请求),几乎不产生费用。</li>
+            <li>本服务只监听 127.0.0.1,不对外网开放。</li>
+          </ul>
+        </div>
+      </details>
+    </main>
+  </div>
 
   <!-- 新增 / 编辑供应商 -->
   <div id="editModal" class="modal hidden" role="dialog" aria-modal="true">

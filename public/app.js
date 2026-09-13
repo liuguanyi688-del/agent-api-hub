@@ -1,7 +1,7 @@
 /* Agent API Hub 前端逻辑(原生 JS,无构建步骤) */
 'use strict';
 
-const state = { providers: [], status: [], filter: 'all', editingId: null };
+const state = { providers: [], status: [], search: '', filterTarget: 'all', filterStatus: 'all', editingId: null };
 
 const TARGET_LABEL = { claude: 'Claude Code', codex: 'Codex CLI', gemini: 'Gemini CLI' };
 const BASE_HINT = {
@@ -78,10 +78,25 @@ async function refresh() {
   render();
 }
 
+function activeIdOf(target) {
+  const s = state.status.find((x) => x.target === target);
+  return s && s.managedByHub ? s.activeProviderId : null;
+}
+
+function visibleProviders() {
+  const q = state.search.trim().toLowerCase();
+  return state.providers.filter((p) => {
+    if (state.filterTarget !== 'all' && p.target !== state.filterTarget) return false;
+    if (state.filterStatus === 'active' && activeIdOf(p.target) !== p.id) return false;
+    if (state.filterStatus === 'idle' && activeIdOf(p.target) === p.id) return false;
+    if (q && !p.name.toLowerCase().includes(q) && !p.baseUrl.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
 function render() {
   renderChips();
-  renderTabs();
-  renderGrid();
+  renderTable();
 }
 
 function renderChips() {
@@ -98,7 +113,7 @@ function renderChips() {
       const title = [
         s.file + (s.authFile ? ' + ' + s.authFile : ''),
         s.liveBaseUrl ? '当前上游:' + s.liveBaseUrl : '当前上游:官方默认',
-        '点击查看该目标的供应商',
+        '点击筛选该目标的供应商',
       ].join('\n');
       return `<div class="chip ${on ? 'on ' : ''}${s.target}" title="${esc(title)}" data-filter="${s.target}">
         <span class="dot"></span><b>${TARGET_LABEL[s.target]}</b><span class="who">${who}</span>
@@ -110,7 +125,7 @@ function renderChips() {
   document.querySelectorAll('#statusChips .chip').forEach((el) => {
     el.onclick = (e) => {
       if (e.target.dataset.reset) return;
-      setFilter(el.dataset.filter);
+      setFilterTarget(el.dataset.filter);
     };
   });
   document.querySelectorAll('#statusChips [data-reset]').forEach((el) => {
@@ -118,73 +133,60 @@ function renderChips() {
   });
 }
 
-function renderTabs() {
-  const tabs = [
-    ['all', '全部'],
-    ['claude', 'Claude Code'],
-    ['codex', 'Codex CLI'],
-    ['gemini', 'Gemini CLI'],
-  ];
-  $('#tabs').innerHTML = tabs
-    .map(([id, label]) => `<button class="tab ${state.filter === id ? 'on' : ''}" data-tab="${id}">${label}</button>`)
-    .join('');
-  document.querySelectorAll('#tabs .tab').forEach((el) => (el.onclick = () => setFilter(el.dataset.tab)));
-}
-
-function setFilter(f) {
-  state.filter = f;
+function setFilterTarget(v) {
+  state.filterTarget = v;
+  $('#filterTarget').value = v;
   render();
 }
 
-function testLine(p) {
+function testCell(p) {
   const t = p.lastTest;
-  if (!t) return '';
+  if (!t) return '<span class="test-cell none" title="尚未测试">—</span>';
   const when = new Date(t.testedAt).toLocaleString('zh-CN', { hour12: false });
-  const cls = t.ok ? 'ok' : 'err';
-  const mark = t.ok ? '✓' : '✗';
-  return `<div class="test-line ${cls}" title="测试于 ${esc(when)}">${mark} ${esc(t.detail)} <span class="lat">· ${t.latencyMs}ms</span></div>`;
+  if (t.ok) return `<span class="test-cell ok" title="测试于 ${esc(when)} · ${esc(t.detail)}">✓ 通过 · ${t.latencyMs}ms</span>`;
+  const short = t.detail.length > 18 ? t.detail.slice(0, 18) + '…' : t.detail;
+  return `<span class="test-cell err" title="测试于 ${esc(when)} · ${esc(t.detail)}">✗ ${esc(short)}</span>`;
 }
 
-function renderGrid() {
-  const list = state.providers.filter((p) => state.filter === 'all' || p.target === state.filter);
-  $('#empty').classList.toggle('hidden', state.providers.length > 0);
+function renderTable() {
+  const list = visibleProviders();
+  $('#tableEmpty').classList.toggle('hidden', state.providers.length > 0);
+  $('#resultInfo').textContent = `共 ${state.providers.length} 个供应商,当前显示 ${list.length} 个`;
 
-  $('#grid').innerHTML = list
+  $('#tbody').innerHTML = list
     .map((p) => {
-      const isActive = state.status.find((s) => s.target === p.target)?.activeProviderId === p.id && state.status.find((s) => s.target === p.target)?.managedByHub;
-      return `<article class="card ${isActive ? 'active' : ''}">
-        <div class="card-head">
-          <span class="badge ${p.target}">${TARGET_LABEL[p.target]}</span>
-          <span class="card-name" title="${esc(p.name)}">${esc(p.name)}</span>
-          ${isActive ? '<span class="badge live">当前使用</span>' : ''}
-        </div>
-        <div class="kv"><span class="k">Base URL</span><span class="v">${esc(p.baseUrl)}</span></div>
-        <div class="kv"><span class="k">Key</span><span class="v">${esc(maskKey(p.apiKey))}</span></div>
-        ${p.model ? `<div class="kv"><span class="k">模型</span><span class="v">${esc(p.model)}</span></div>` : ''}
-        ${p.target === 'codex' ? `<div class="kv"><span class="k">接口</span><span class="v">wire_api = ${esc(p.wireApi)}</span></div>` : ''}
-        ${p.note ? `<div class="kv"><span class="k">备注</span><span class="v">${esc(p.note)}</span></div>` : ''}
-        ${testLine(p)}
-        <div class="card-foot">
+      const isActive = activeIdOf(p.target) === p.id;
+      return `<tr class="${isActive ? 'active-row' : ''}" data-id="${p.id}">
+        <td class="cell-name">${esc(p.name)}${p.note ? `<span class="note" title="${esc(p.note)}">${esc(p.note)}</span>` : ''}</td>
+        <td><span class="badge ${p.target}">${TARGET_LABEL[p.target]}</span></td>
+        <td><span class="cell-url" title="${esc(p.baseUrl)}">${esc(p.baseUrl)}</span></td>
+        <td><span class="cell-key"><span>${esc(maskKey(p.apiKey))}</span><button class="copy-key" data-act="copykey" data-id="${p.id}" title="复制完整 Key">⧉</button></span></td>
+        <td>${isActive ? '<span class="pill live">当前使用</span>' : '<span class="pill idle">未启用</span>'}</td>
+        <td>${testCell(p)}</td>
+        <td class="td-ops">
           ${isActive ? '' : `<button class="btn primary small" data-act="activate" data-id="${p.id}">启用</button>`}
           <button class="btn small" data-act="test" data-id="${p.id}">测试</button>
           <button class="btn small" data-act="preview" data-id="${p.id}">预览</button>
-          <span class="spacer"></span>
           <button class="btn ghost small" data-act="edit" data-id="${p.id}">编辑</button>
-          <button class="btn ghost small" data-act="delete" data-id="${p.id}">删除</button>
-        </div>
-      </article>`;
+          <button class="btn danger small" data-act="delete" data-id="${p.id}">删除</button>
+        </td>
+      </tr>`;
     })
     .join('');
 }
 
-/* 事件委托:卡片按钮 */
-$('#grid').addEventListener('click', async (e) => {
+/* 事件委托:表格按钮 */
+$('#tbody').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-act]');
   if (!btn) return;
   const p = state.providers.find((x) => x.id === btn.dataset.id);
   if (!p) return;
   const act = btn.dataset.act;
   try {
+    if (act === 'copykey') {
+      copyText(p.apiKey || '');
+      return;
+    }
     if (act === 'activate') {
       const preview = await api(`/api/providers/${p.id}/preview`);
       const fileList = preview.files.map((f) => `<code>${esc(f.path)}</code>`).join('、');
@@ -217,6 +219,25 @@ $('#grid').addEventListener('click', async (e) => {
     await refresh().catch(() => {});
   }
 });
+
+/* ---------------- 搜索 / 筛选 / 刷新 ---------------- */
+
+$('#searchInput').addEventListener('input', (e) => {
+  state.search = e.target.value;
+  renderTable();
+});
+$('#filterTarget').addEventListener('change', (e) => {
+  state.filterTarget = e.target.value;
+  renderTable();
+});
+$('#filterStatus').addEventListener('change', (e) => {
+  state.filterStatus = e.target.value;
+  renderTable();
+});
+$('#refreshBtn').onclick = async () => {
+  await refresh().catch((e) => toast('刷新失败:' + e.message, 'err'));
+  toast('已刷新', 'ok');
+};
 
 /* ---------------- 恢复默认 ---------------- */
 
@@ -300,6 +321,31 @@ async function openPreview(id) {
   $('#previewBody').querySelectorAll('[data-copy]').forEach((el) => (el.onclick = () => copyText(el.dataset.copy)));
   openModal('previewModal');
 }
+
+/* ---------------- 侧边栏 / 主题 ---------------- */
+
+$('#navMain').onclick = (e) => {
+  e.preventDefault();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+const gotoHelp = (e) => {
+  e.preventDefault();
+  const help = $('#helpBlock');
+  help.open = true;
+  help.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+$('#navGuide').onclick = gotoHelp;
+$('#navHow').onclick = gotoHelp;
+
+function applyTheme(light) {
+  document.body.classList.toggle('light', light);
+  localStorage.setItem('apihub-theme', light ? 'light' : 'dark');
+  $('#themeText').textContent = light ? '深色模式' : '浅色模式';
+  $('#themeIconMoon').classList.toggle('hidden', light);
+  $('#themeIconSun').classList.toggle('hidden', !light);
+}
+$('#themeToggle').onclick = () => applyTheme(!document.body.classList.contains('light'));
+applyTheme(localStorage.getItem('apihub-theme') === 'light');
 
 /* ---------------- 启动 ---------------- */
 
