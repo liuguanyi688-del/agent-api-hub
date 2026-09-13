@@ -1,0 +1,14 @@
+{
+  "name": "agent-api-hub",
+  "version": "0.1.0",
+  "description": "把任意 OpenAI / Anthropic / Gemini 兼容 API 一键接入 Claude Code、Codex、Gemini CLI 的本地管理面板",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/smoke.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent API Hub · CLI Agent 供应商接入面板</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">⚡</div>
+      <div>
+        <h1>Agent API Hub</h1>
+        <p class="subtitle">把任意 OpenAI / Anthropic / Gemini 兼容 API,一键接入本地 CLI Agent</p>
+      </div>
+    </div>
+    <div id="statusChips" class="chips" aria-label="各 CLI 当前接入状态"></div>
+  </header>
+
+  <main>
+    <div class="toolbar">
+      <nav id="tabs" class="tabs" aria-label="按目标筛选"></nav>
+      <button id="addBtn" class="btn primary">＋ 添加供应商</button>
+    </div>
+
+    <section id="grid" class="grid" aria-live="polite"></section>
+
+    <section id="empty" class="empty hidden">
+      <div class="empty-icon">🔌</div>
+      <h2>还没有供应商</h2>
+      <p>添加一个 API 供应商(官方或中转站地址均可),然后点「启用」即可写入对应 CLI 的配置文件。</p>
+      <button class="btn primary" onclick="openEdit()">添加第一个供应商</button>
+    </section>
+
+    <details class="help">
+      <summary>它的工作原理 &amp; 安全说明</summary>
+      <div class="help-body">
+        <pre class="flow">你的 CLI Agent(Claude Code / Codex / Gemini CLI)
+        │  读取固定路径的配置文件(见下表)
+        ▼
+Agent API Hub 面板 ── 启用 ──► 合并写入对应配置文件(写前自动备份为 *.apihub.bak)
+        │
+        ▼
+请求按你填的 Base URL + API Key 发往上游(官方 / 中转站)</pre>
+        <table class="files">
+          <thead><tr><th>目标 CLI</th><th>配置文件</th><th>写入的键</th></tr></thead>
+          <tbody>
+            <tr><td>Claude Code</td><td><code>~/.claude/settings.json</code></td><td><code>env.ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_MODEL</code></td></tr>
+            <tr><td>Codex CLI</td><td><code>~/.codex/config.toml</code> + <code>auth.json</code></td><td>顶部管理块 <code>model_provider</code> + <code>[model_providers.apihub]</code>;<code>auth.json</code> 的 <code>OPENAI_API_KEY</code></td></tr>
+            <tr><td>Gemini CLI</td><td><code>~/.gemini/.env</code></td><td><code>GEMINI_API_KEY / GOOGLE_GEMINI_BASE_URL / GEMINI_MODEL</code></td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li>合并写入:只增改本工具管理的键,你已有的其他配置一律保留;每次写入前滚动备份一份 <code>*.apihub.bak</code>。</li>
+          <li>供应商列表保存在本地 <code>data/providers.json</code>,API Key 明文存储 —— 这是单机小工具的取舍,请勿把项目目录分享给他人。</li>
+          <li>「测试」会向上游发一个真实的小请求验证鉴权(GET /v1/models,失败则退化为 1 token 对话请求),几乎不产生费用。</li>
+          <li>本服务只监听 127.0.0.1,不对外网开放。</li>
+        </ul>
+      </div>
+    </details>
+  </main>
+
+  <!-- 新增 / 编辑供应商 -->
+  <div id="editModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="editTitle">添加供应商</h3>
+        <button class="icon-btn" data-close="editModal" aria-label="关闭">✕</button>
+      </div>
+      <form id="editForm" class="form">
+        <label>接入目标
+          <select id="f_target" required>
+            <option value="claude">Claude Code(Anthropic 协议)</option>
+            <option value="codex">Codex CLI(OpenAI 协议)</option>
+            <option value="gemini">Gemini CLI(Gemini 协议)</option>
+          </select>
+        </label>
+        <label>名称 <input id="f_name" required placeholder="例如:某中转站 · Sonnet" /></label>
+        <label>Base URL
+          <input id="f_baseUrl" required placeholder="https://..." spellcheck="false" />
+          <span id="f_baseHint" class="hint"></span>
+        </label>
+        <label>API Key
+          <div class="key-row">
+            <input id="f_apiKey" type="password" placeholder="sk-..." spellcheck="false" autocomplete="off" />
+            <button type="button" id="toggleKey" class="btn ghost small">显示</button>
+          </div>
+        </label>
+        <label>默认模型 <span class="optional">(可选)</span>
+          <input id="f_model" placeholder="留空则不指定" spellcheck="false" />
+          <span class="hint">Claude Code → ANTHROPIC_MODEL;Codex → model;Gemini CLI → GEMINI_MODEL</span>
+        </label>
+        <label id="f_wireRow">Codex 接口风格
+          <select id="f_wireApi">
+            <option value="chat">chat(/v1/chat/completions,中转站通用)</option>
+            <option value="responses">responses(/v1/responses,官方新接口)</option>
+          </select>
+        </label>
+        <label>备注 <span class="optional">(可选)</span>
+          <input id="f_note" placeholder="价格 / 来源 / 到期时间等" />
+        </label>
+        <div class="modal-foot">
+          <button type="button" class="btn ghost" data-close="editModal">取消</button>
+          <button type="submit" class="btn primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 配置预览 -->
+  <div id="previewModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card wide">
+      <div class="modal-head">
+        <h3>将写入的配置预览</h3>
+        <button class="icon-btn" data-close="previewModal" aria-label="关闭">✕</button>
+      </div>
+      <div id="previewBody" class="preview-body"></div>
+      <div class="modal-foot">
+        <span class="hint">以上文件在写入前都会自动备份为 <code>*.apihub.bak</code></span>
+        <button class="btn ghost" data-close="previewModal">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 通用确认框 -->
+  <div id="confirmModal" class="modal hidden" role="alertdialog" aria-modal="true">
+    <div class="modal-card narrow">
+      <div class="modal-head"><h3 id="confirmTitle">确认</h3></div>
+      <p id="confirmText" class="confirm-text"></p>
+      <div class="modal-foot">
+        <button id="confirmNo" class="btn ghost">取消</button>
+        <button id="confirmYes" class="btn danger">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

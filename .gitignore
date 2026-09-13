@@ -1,0 +1,9 @@
+# 供应商数据(含 API Key),切勿提交
+data/
+
+# 测试沙盒
+.sandbox-home/
+
+# 日志与临时文件
+*.log
+*.tmp-*
