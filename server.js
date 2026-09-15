@@ -579,7 +579,10 @@ async function route(req, res) {
   }
   try {
     const data = await fsp.readFile(filePath);
-    res.writeHead(200, { 'content-type': MIME[path.extname(filePath)] || 'application/octet-stream' });
+    res.writeHead(200, {
+      'content-type': MIME[path.extname(filePath)] || 'application/octet-stream',
+      'cache-control': 'no-store', // 面板迭代频繁,避免浏览器缓存旧版页面
+    });
     res.end(data);
   } catch {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
