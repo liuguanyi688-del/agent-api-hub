@@ -1,9 +1,26 @@
 /* Agent API Hub 前端逻辑(原生 JS,无构建步骤;文案经 i18n.js 的 t() 输出) */
 'use strict';
 
-const state = { providers: [], status: [], search: '', filterTarget: 'all', filterStatus: 'all', editingId: null };
+const state = {
+  providers: [], status: [], search: '', filterTarget: 'all', filterStatus: 'all', editingId: null,
+  page: 1,
+  pageSize: Number(localStorage.getItem('apihub-page-size')) || 20,
+  hiddenCols: (() => { try { return JSON.parse(localStorage.getItem('apihub-hidden-cols') || '[]'); } catch { return []; } })(),
+};
 
 const TARGET_LABEL = { claude: 'Claude Code', codex: 'Codex CLI', gemini: 'Gemini CLI' };
+
+/* 可隐藏的表格列(操作列恒显);显隐与分页偏好存 localStorage */
+const COLUMNS = [
+  { id: 'name', i18n: 'thName' },
+  { id: 'target', i18n: 'thTarget' },
+  { id: 'baseUrl', i18n: 'thBaseUrl' },
+  { id: 'key', i18n: 'thKey' },
+  { id: 'status', i18n: 'thStatus' },
+  { id: 'test', i18n: 'thTest' },
+];
+const saveHiddenCols = () => localStorage.setItem('apihub-hidden-cols', JSON.stringify(state.hiddenCols));
+const savePageSize = () => localStorage.setItem('apihub-page-size', String(state.pageSize));
 
 /* ---------------- 工具 ---------------- */
 
@@ -146,25 +163,53 @@ function testCell(p) {
   return `<span class="test-cell err" title="${esc(when)} · ${esc(tt.detail)}">✗ ${esc(short)}</span>`;
 }
 
+function cellHtml(col, p) {
+  switch (col.id) {
+    case 'name':
+      return `<td class="cell-name">${esc(p.name)}${p.note ? `<span class="note" title="${esc(p.note)}">${esc(p.note)}</span>` : ''}</td>`;
+    case 'target':
+      return `<td><span class="badge ${p.target}">${TARGET_LABEL[p.target]}</span></td>`;
+    case 'baseUrl':
+      return `<td><span class="cell-url" title="${esc(p.baseUrl)}">${esc(p.baseUrl)}</span></td>`;
+    case 'key':
+      return `<td><span class="cell-key"><span>${esc(maskKey(p.apiKey))}</span><button class="copy-key" data-act="copykey" data-id="${p.id}" title="${esc(t('copyKeyTitle'))}">⧉</button></span></td>`;
+    case 'status':
+      return `<td>${activeIdOf(p.target) === p.id ? `<span class="pill live">${esc(t('pillLive'))}</span>` : `<span class="pill idle">${esc(t('pillIdle'))}</span>`}</td>`;
+    case 'test':
+      return `<td>${testCell(p)}</td>`;
+    default:
+      return '<td></td>';
+  }
+}
+
 function renderTable() {
   const list = visibleProviders();
-  $('#tableEmpty').classList.toggle('hidden', state.providers.length > 0);
-  $('#resultInfo').textContent = t('resultInfo', { total: state.providers.length, shown: list.length });
+  const total = list.length;
+  const pages = Math.max(1, Math.ceil(total / state.pageSize));
+  state.page = Math.min(Math.max(1, state.page), pages);
+  const from = total === 0 ? 0 : (state.page - 1) * state.pageSize + 1;
+  const to = Math.min(total, state.page * state.pageSize);
+  const pageList = list.slice((state.page - 1) * state.pageSize, to);
 
-  $('#tbody').innerHTML = list
+  const cols = COLUMNS.filter((c) => !state.hiddenCols.includes(c.id));
+  $('#theadRow').innerHTML = cols.map((c) => `<th data-i18n="${c.i18n}">${esc(t(c.i18n))}</th>`).join('') + `<th class="th-ops">${esc(t('thOps'))}</th>`;
+
+  $('#tableEmpty').classList.toggle('hidden', state.providers.length > 0);
+  $('#pageInfo').textContent = t('resultPage', { from, to, total });
+  $('#pageInd').textContent = `${state.page} / ${pages}`;
+  $('#prevPage').disabled = state.page <= 1;
+  $('#nextPage').disabled = state.page >= pages;
+
+  $('#tbody').innerHTML = pageList
     .map((p) => {
       const isActive = activeIdOf(p.target) === p.id;
       return `<tr class="${isActive ? 'active-row' : ''}" data-id="${p.id}">
-        <td class="cell-name">${esc(p.name)}${p.note ? `<span class="note" title="${esc(p.note)}">${esc(p.note)}</span>` : ''}</td>
-        <td><span class="badge ${p.target}">${TARGET_LABEL[p.target]}</span></td>
-        <td><span class="cell-url" title="${esc(p.baseUrl)}">${esc(p.baseUrl)}</span></td>
-        <td><span class="cell-key"><span>${esc(maskKey(p.apiKey))}</span><button class="copy-key" data-act="copykey" data-id="${p.id}" title="${esc(t('copyKeyTitle'))}">⧉</button></span></td>
-        <td>${isActive ? `<span class="pill live">${esc(t('pillLive'))}</span>` : `<span class="pill idle">${esc(t('pillIdle'))}</span>`}</td>
-        <td>${testCell(p)}</td>
+        ${cols.map((c) => cellHtml(c, p)).join('')}
         <td class="td-ops">
           ${isActive ? '' : `<button class="btn primary small" data-act="activate" data-id="${p.id}">${esc(t('btnEnable'))}</button>`}
           <button class="btn small" data-act="test" data-id="${p.id}">${esc(t('btnTest'))}</button>
           <button class="btn small" data-act="preview" data-id="${p.id}">${esc(t('btnPreview'))}</button>
+          <button class="btn ghost small" data-act="copyurl" data-id="${p.id}" title="${esc(t('copyUrlTitle'))}">🔗</button>
           <button class="btn ghost small" data-act="edit" data-id="${p.id}">${esc(t('btnEdit'))}</button>
           <button class="btn danger small" data-act="delete" data-id="${p.id}">${esc(t('btnDelete'))}</button>
         </td>
@@ -183,6 +228,10 @@ $('#tbody').addEventListener('click', async (e) => {
   try {
     if (act === 'copykey') {
       copyText(p.apiKey || '');
+      return;
+    }
+    if (act === 'copyurl') {
+      copyText(p.baseUrl);
       return;
     }
     if (act === 'activate') {
@@ -219,16 +268,59 @@ $('#tbody').addEventListener('click', async (e) => {
 
 $('#searchInput').addEventListener('input', (e) => {
   state.search = e.target.value;
+  state.page = 1;
   renderTable();
 });
 $('#filterTarget').addEventListener('change', (e) => {
   state.filterTarget = e.target.value;
+  state.page = 1;
   renderTable();
 });
 $('#filterStatus').addEventListener('change', (e) => {
   state.filterStatus = e.target.value;
+  state.page = 1;
   renderTable();
 });
+
+/* ---------------- 分页 / 列设置 ---------------- */
+
+$('#pageSizeSel').addEventListener('change', (e) => {
+  state.pageSize = Number(e.target.value) || 20;
+  state.page = 1;
+  savePageSize();
+  renderTable();
+});
+$('#prevPage').addEventListener('click', () => {
+  state.page -= 1;
+  renderTable();
+});
+$('#nextPage').addEventListener('click', () => {
+  state.page += 1;
+  renderTable();
+});
+
+function buildColMenu() {
+  $('#colMenu').innerHTML = COLUMNS.map(
+    (c) => `<label><input type="checkbox" data-col="${c.id}" ${state.hiddenCols.includes(c.id) ? '' : 'checked'} /> ${esc(t(c.i18n))}</label>`,
+  ).join('');
+  $('#colMenu').querySelectorAll('input[data-col]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const id = cb.dataset.col;
+      state.hiddenCols = cb.checked ? state.hiddenCols.filter((x) => x !== id) : [...state.hiddenCols, id];
+      saveHiddenCols();
+      renderTable();
+    });
+  });
+}
+$('#colBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  buildColMenu();
+  $('#colMenu').classList.toggle('hidden');
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.col-settings')) $('#colMenu').classList.add('hidden');
+});
+$('#pageSizeSel').value = String(state.pageSize);
 $('#refreshBtn').onclick = async () => {
   await refresh().catch((e) => toast(t('toastRefreshFailed', { msg: e.message }), 'err'));
   toast(t('toastRefreshed'), 'ok');
@@ -342,6 +434,7 @@ applyTheme(localStorage.getItem('apihub-theme') === 'light');
 document.addEventListener('langchange', () => {
   updateFormHints();
   applyTheme(document.body.classList.contains('light'));
+  buildColMenu();
   render();
 });
 

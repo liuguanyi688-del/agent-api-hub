@@ -73,7 +73,13 @@
           </select>
         </div>
         <div class="toolbar-right">
-          <button class="btn ghost icon-only" id="refreshBtn" title="刷新列表">
+          <div class="col-settings">
+            <button class="btn ghost icon-only" id="colBtn" data-i18n-title="colSettings" title="列设置">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9.5 4v16M15.5 4v16"/></svg>
+            </button>
+            <div id="colMenu" class="col-menu hidden"></div>
+          </div>
+          <button class="btn ghost icon-only" id="refreshBtn" data-i18n-title="refreshTitle" title="刷新列表">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </button>
           <button class="btn primary" id="addBtn">
@@ -86,15 +92,7 @@
       <div class="table-wrap">
         <table class="ptable">
           <thead>
-            <tr>
-              <th data-i18n="thName">名称</th>
-              <th data-i18n="thTarget">目标</th>
-              <th data-i18n="thBaseUrl">Base URL</th>
-              <th data-i18n="thKey">API Key</th>
-              <th data-i18n="thStatus">状态</th>
-              <th data-i18n="thTest">测试</th>
-              <th class="th-ops" data-i18n="thOps">操作</th>
-            </tr>
+            <tr id="theadRow"></tr>
           </thead>
           <tbody id="tbody"></tbody>
         </table>
@@ -107,8 +105,22 @@
       </div>
 
       <div class="table-foot">
-        <span id="resultInfo">共 0 个供应商</span>
-        <span class="foot-right" data-i18n="footLocal">本地服务 · 127.0.0.1:8317</span>
+        <div class="foot-left">
+          <span id="pageInfo">—</span>
+          <label class="page-size"><span data-i18n="pageSizeLabel">每页</span>
+            <select id="pageSizeSel">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+        </div>
+        <div class="foot-right">
+          <span class="foot-local" data-i18n="footLocal">本地服务 · 127.0.0.1:8317</span>
+          <button class="page-btn" id="prevPage" data-i18n-title="prevPage" title="上一页">‹</button>
+          <span id="pageInd">1 / 1</span>
+          <button class="page-btn" id="nextPage" data-i18n-title="nextPage" title="下一页">›</button>
+        </div>
       </div>
 
       <details class="help" id="helpBlock">

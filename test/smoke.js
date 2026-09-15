@@ -175,6 +175,33 @@ async function main() {
     r = await api('/api/providers');
     check('删除后列表不含该供应商', !r.data.some((x) => x.id === claudeProv.id));
 
+    console.log('── 前端词条完整性(i18n)');
+    const pubDir = path.join(ROOT, 'public');
+    const i18nCode = fs.readFileSync(path.join(pubDir, 'i18n.js'), 'utf8');
+    const sandbox = new Function(
+      'document',
+      'localStorage',
+      'CustomEvent',
+      i18nCode + '\n;return { I18N_DICT, t };',
+    );
+    const { I18N_DICT, t: tFn } = sandbox(
+      { querySelectorAll: () => [], getElementById: () => null },
+      { getItem: () => null, setItem: () => {} },
+      function () {},
+    );
+    const htmlSrc = fs.readFileSync(path.join(pubDir, 'index.html'), 'utf8');
+    const appSrc = fs.readFileSync(path.join(pubDir, 'app.js'), 'utf8');
+    const usedKeys = new Set();
+    for (const m of htmlSrc.matchAll(/data-i18n(?:-html|-placeholder|-title)?="([^"]+)"/g)) usedKeys.add(m[1]);
+    for (const m of appSrc.matchAll(/\bt\('([A-Za-z0-9_]+)'/g)) usedKeys.add(m[1]);
+    const missZh = [...usedKeys].filter((k) => !(k in I18N_DICT.zh));
+    const missEn = [...usedKeys].filter((k) => !(k in I18N_DICT.en));
+    check(`页面与脚本引用的 ${usedKeys.size} 个词条在 zh 词典齐全`, missZh.length === 0, missZh.join(','));
+    check('词条在 en 词典齐全', missEn.length === 0, missEn.join(','));
+    const expectedInterp = I18N_DICT.zh.resultPage.replace('{from}', 1).replace('{to}', 5).replace('{total}', 9);
+    check('t() 插值正常', tFn('resultPage', { from: 1, to: 5, total: 9 }) === expectedInterp);
+    check('缺键回退原文', tFn('__missing_key__') === '__missing_key__');
+
     console.log(`\n通过 ${passed} 项检查${process.exitCode ? '(存在失败!)' : ' ✅'}`);
   } finally {
     shutdown();
