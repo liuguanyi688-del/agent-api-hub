@@ -242,11 +242,13 @@ $('#tbody').addEventListener('click', async (e) => {
       if (!ok) return;
       btn.disabled = true;
       await api(`/api/providers/${p.id}/activate`, { method: 'POST' });
+      logEvent(t('evtActivated', { name: p.name, target: TARGET_LABEL[p.target] }));
       toast(t('toastActivated', { target: TARGET_LABEL[p.target], name: p.name }), 'ok');
     } else if (act === 'test') {
       btn.disabled = true;
       btn.textContent = t('testing');
       const r = await api(`/api/providers/${p.id}/test`, { method: 'POST' });
+      logEvent(r.ok ? t('evtTestOk', { name: p.name, ms: r.latencyMs }) : t('evtTestErr', { name: p.name, detail: r.detail }));
       toast(r.ok ? `✓ ${r.detail}(${r.latencyMs}ms)` : `✗ ${r.detail}`, r.ok ? 'ok' : 'err');
     } else if (act === 'preview') {
       await openPreview(p.id);
@@ -256,6 +258,7 @@ $('#tbody').addEventListener('click', async (e) => {
       const ok = await confirmBox(t('confirmDeleteTitle'), t('confirmDeleteBody', { name: esc(p.name) }));
       if (!ok) return;
       await api(`/api/providers/${p.id}`, { method: 'DELETE' });
+      logEvent(t('evtDeleted', { name: p.name }));
       toast(t('toastDeleted'), 'ok');
     }
     await refresh();
@@ -333,6 +336,7 @@ async function resetTarget(target) {
   const ok = await confirmBox(t('resetTitle', { target: TARGET_LABEL[target] }), t('resetBody'));
   if (!ok) return;
   await api(`/api/targets/${target}/reset`, { method: 'POST' });
+  logEvent(t('evtReset', { target: TARGET_LABEL[target] }));
   toast(t('toastResetDone', { target: TARGET_LABEL[target] }), 'ok');
   await refresh();
 }
@@ -383,6 +387,7 @@ $('#editForm').addEventListener('submit', async (e) => {
     if (state.editingId) await api(`/api/providers/${state.editingId}`, { method: 'PUT', body });
     else await api('/api/providers', { method: 'POST', body });
     closeModal('editModal');
+    logEvent(t('evtSaved', { name: body.name }));
     toast(t('toastSaved'), 'ok');
     await refresh();
   } catch (err) {
@@ -406,6 +411,73 @@ async function openPreview(id) {
   $('#previewBody').querySelectorAll('[data-copy]').forEach((el) => (el.onclick = () => copyText(el.dataset.copy)));
   openModal('previewModal');
 }
+
+/* ---------------- 通知中心(本地事件,localStorage 上限 50 条) ---------------- */
+
+const EVENTS_MAX = 50;
+
+function loadEvents() {
+  try {
+    return JSON.parse(localStorage.getItem('apihub-events') || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function logEvent(text) {
+  const list = loadEvents();
+  list.unshift({ text, time: Date.now() });
+  localStorage.setItem('apihub-events', JSON.stringify(list.slice(0, EVENTS_MAX)));
+  const unread = Math.min((Number(localStorage.getItem('apihub-events-unread')) || 0) + 1, 99);
+  localStorage.setItem('apihub-events-unread', String(unread));
+  renderBellDot(unread);
+}
+
+function renderBellDot(count) {
+  const el = $('#bellCount');
+  const n = count ?? (Number(localStorage.getItem('apihub-events-unread')) || 0);
+  el.textContent = n > 99 ? '99+' : String(n);
+  el.classList.toggle('hidden', n <= 0);
+}
+
+function renderBell() {
+  const list = loadEvents();
+  $('#bellList').innerHTML = list.length
+    ? list
+        .map(
+          (ev) =>
+            `<div class="bell-item"><div>${esc(ev.text)}</div><div class="evt-time">${esc(new Date(ev.time).toLocaleString('zh-CN', { hour12: false }))}</div></div>`,
+        )
+        .join('')
+    : `<div class="bell-empty">${esc(t('bellEmpty'))}</div>`;
+}
+
+$('#bellBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  localStorage.setItem('apihub-events-unread', '0');
+  renderBellDot(0);
+  renderBell();
+  $('#bellMenu').classList.toggle('hidden');
+});
+$('#bellClear').addEventListener('click', () => {
+  localStorage.setItem('apihub-events', '[]');
+  renderBell();
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.bell-wrap')) $('#bellMenu').classList.add('hidden');
+});
+renderBellDot();
+
+/* ---------------- 侧边栏收起 ---------------- */
+
+function applySidebar(collapsed) {
+  document.body.classList.toggle('sidebar-collapsed', collapsed);
+  localStorage.setItem('apihub-sidebar', collapsed ? 'collapsed' : 'expanded');
+  $('#collapseText').textContent = collapsed ? t('expand') : t('collapse');
+  $('#collapseBtn').title = collapsed ? t('expand') : t('collapse');
+}
+$('#collapseBtn').addEventListener('click', () => applySidebar(!document.body.classList.contains('sidebar-collapsed')));
+applySidebar(localStorage.getItem('apihub-sidebar') === 'collapsed');
 
 /* ---------------- 侧边栏 / 视图切换 / 主题 ---------------- */
 
@@ -510,6 +582,7 @@ applyTheme(localStorage.getItem('apihub-theme') === 'light');
 document.addEventListener('langchange', () => {
   updateFormHints();
   applyTheme(document.body.classList.contains('light'));
+  applySidebar(document.body.classList.contains('sidebar-collapsed'));
   buildColMenu();
   switchView(state.view);
   render();

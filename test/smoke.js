@@ -202,6 +202,7 @@ async function main() {
     check('t() 插值正常', tFn('resultPage', { from: 1, to: 5, total: 9 }) === expectedInterp);
     check('缺键回退原文', tFn('__missing_key__') === '__missing_key__');
     check('仪表盘视图结构存在', htmlSrc.includes('id="viewDash"') && htmlSrc.includes('id="viewProviders"') && htmlSrc.includes('id="statGrid"'));
+    check('通知中心与侧边栏收起结构存在', htmlSrc.includes('id="bellBtn"') && htmlSrc.includes('id="bellMenu"') && htmlSrc.includes('id="collapseBtn"'));
 
     console.log(`\n通过 ${passed} 项检查${process.exitCode ? '(存在失败!)' : ' ✅'}`);
   } finally {

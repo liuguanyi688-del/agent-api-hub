@@ -413,6 +413,64 @@ code { font-family: var(--mono); }
   .dash-panels { grid-template-columns: 1fr; }
 }
 
+/* ---------- 通知中心 ---------- */
+.topbar-right { display: flex; align-items: center; gap: 14px; }
+.bell-wrap { position: relative; }
+.bell {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 36px; height: 36px;
+  display: grid; place-items: center;
+  cursor: pointer;
+  color: var(--muted);
+  transition: color 0.15s, border-color 0.15s;
+}
+.bell:hover { color: var(--text); border-color: var(--accent); }
+.bell svg { width: 17px; height: 17px; }
+.bell-count {
+  position: absolute; top: -6px; right: -6px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  background: var(--err); color: #fff;
+  border-radius: 999px;
+  font-size: 10px; line-height: 16px; text-align: center; font-weight: 700;
+}
+.bell-menu {
+  position: absolute; right: 0; top: calc(100% + 8px);
+  width: 330px; max-height: 380px; overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  z-index: 40;
+}
+.bell-menu-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px; font-weight: 600;
+  position: sticky; top: 0;
+  background: var(--panel);
+  z-index: 1;
+}
+.bell-item { padding: 9px 12px; border-bottom: 1px solid var(--border-soft); font-size: 12.5px; line-height: 1.5; }
+.bell-item:last-child { border-bottom: none; }
+.bell-item .evt-time { color: var(--muted); font-size: 11px; margin-top: 3px; font-family: var(--mono); }
+.bell-empty { padding: 24px; text-align: center; color: var(--muted); font-size: 12.5px; }
+
+/* ---------- 侧边栏收起(桌面端) ---------- */
+@media (min-width: 941px) {
+  .sidebar { transition: width 0.18s ease; }
+  .layout { transition: margin-left 0.18s ease; }
+  body.sidebar-collapsed .sidebar { width: 64px; }
+  body.sidebar-collapsed .layout { margin-left: 64px; }
+  body.sidebar-collapsed .brand-text { display: none; }
+  body.sidebar-collapsed .brand { justify-content: center; padding: 18px 6px; }
+  body.sidebar-collapsed .nav-item { justify-content: center; padding: 9px 0; }
+  body.sidebar-collapsed .nav-item span { display: none; }
+}
+
 /* ---------- 弹窗 ---------- */
 .modal {
   position: fixed; inset: 0; z-index: 50;
