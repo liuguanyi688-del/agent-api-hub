@@ -248,6 +248,18 @@ async function main() {
     });
     await new Promise((r) => mockUp.listen(0, '127.0.0.1', r));
     const mockPort = mockUp.address().port;
+    // 恒定 500 的上游,用于验证 5xx 故障转移;立即断连的上游,用于验证连接错误转移(快速且确定)
+    const mock500 = httpMod.createServer((req, res) => {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { message: 'always broken' } }));
+    });
+    await new Promise((r) => mock500.listen(0, '127.0.0.1', r));
+    const mock500Port = mock500.address().port;
+    const mockDrop = httpMod.createServer((req, res) => {
+      req.socket.destroy();
+    });
+    await new Promise((r) => mockDrop.listen(0, '127.0.0.1', r));
+    const mockDropPort = mockDrop.address().port;
 
     const proxyDataDir = path.join(SANDBOX, 'proxy-data');
     await fsp.mkdir(proxyDataDir, { recursive: true });
@@ -255,10 +267,12 @@ async function main() {
       path.join(proxyDataDir, 'providers.json'),
       JSON.stringify({
         providers: [
+          { id: 'p-bad', target: 'codex', name: 'conn-drop', baseUrl: `http://127.0.0.1:${mockDropPort}/v1`, apiKey: 'sk-x' },
           { id: 'p-codex', target: 'codex', name: 'mock-openai', baseUrl: `http://127.0.0.1:${mockPort}/v1`, apiKey: 'sk-mock' },
+          { id: 'p-500', target: 'claude', name: 'always-500', baseUrl: `http://127.0.0.1:${mock500Port}`, apiKey: 'sk-x' },
           { id: 'p-claude', target: 'claude', name: 'mock-anthropic', baseUrl: `http://127.0.0.1:${mockPort}`, apiKey: 'sk-mock' },
         ],
-        active: { codex: 'p-codex', claude: 'p-claude', gemini: null },
+        active: { codex: 'p-bad', claude: 'p-500', gemini: null },
       }),
       'utf8',
     );
@@ -272,7 +286,7 @@ async function main() {
       let proxyUp = false;
       for (let i = 0; i < 40 && !proxyUp; i++) {
         try {
-          await fetch('http://127.0.0.1:8393/v1/models');
+          await fetch('http://127.0.0.1:8393/v1/models', { signal: AbortSignal.timeout(10000) });
           proxyUp = true;
         } catch {
           await new Promise((r2) => setTimeout(r2, 100));
@@ -284,6 +298,7 @@ async function main() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ model: 'mock-model', messages: [] }),
+        signal: AbortSignal.timeout(10000),
       });
       const j1 = await r1.json();
       check('OpenAI 非流式转发正常', r1.status === 200 && j1.choices?.[0]?.message?.content === 'ok');
@@ -292,6 +307,7 @@ async function main() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ model: 'mock-model', stream: true }),
+        signal: AbortSignal.timeout(10000),
       });
       const sseText = await r2.text();
       check('SSE 流式透传', r2.status === 200 && String(r2.headers.get('content-type')).includes('text/event-stream') && sseText.includes('[DONE]'));
@@ -300,12 +316,17 @@ async function main() {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({ model: 'claude-x', max_tokens: 1, messages: [] }),
+        signal: AbortSignal.timeout(10000),
       });
       const j3 = await r3.json();
       check('Anthropic 转发并注入 x-api-key', r3.status === 200 && seenApiKey === 'sk-mock' && j3.usage?.input_tokens === 5);
 
-      const r4 = await fetch('http://127.0.0.1:8393/v1beta/models');
+      const r4 = await fetch('http://127.0.0.1:8393/v1beta/models', { signal: AbortSignal.timeout(10000) });
       check('无激活供应商时返回 503', r4.status === 503);
+
+      const r5 = await fetch('http://127.0.0.1:8393/proxy-health', { signal: AbortSignal.timeout(10000) });
+      const j5 = await r5.json();
+      check('代理健康检查端点', r5.status === 200 && j5.ok === true && typeof j5.requests === 'number');
 
       const usageList = JSON.parse(await fsp.readFile(path.join(proxyDataDir, 'usage.json'), 'utf8'));
       check(
@@ -315,9 +336,22 @@ async function main() {
           usageList.some((u) => u.usage?.promptTokens === 5 && u.usage?.completionTokens === 7) &&
           usageList.every((u) => typeof u.latencyMs === 'number'),
       );
+      const chatEntry = usageList.find((u) => u.path === '/v1/chat/completions' && u.status === 200);
+      const msgEntry = usageList.find((u) => u.path === '/v1/messages' && u.status === 200);
+      check(
+        '故障转移:激活供应商失败自动换备用并记录 attempts/failoverFrom',
+        chatEntry?.providerId === 'p-codex' && chatEntry.attempts === 2 && chatEntry.failoverFrom === 'p-bad' &&
+        msgEntry?.providerId === 'p-claude' && msgEntry.attempts === 2 && msgEntry.failoverFrom === 'p-500',
+        JSON.stringify({ chatEntry, msgEntry }).slice(0, 220),
+      );
     } finally {
       killProxy();
+      // 代理与 mock 之间存在 keep-alive 连接(Node 19+ 全局代理默认开启),
+      // 不先断掉的话 server.close() 会一直等,测试进程永远退不出
+      mockUp.closeAllConnections?.();
+      mock500.closeAllConnections?.();
       mockUp.close();
+      mock500.close();
     }
 
     console.log(`\n通过 ${passed} 项检查${process.exitCode ? '(存在失败!)' : ' ✅'}`);

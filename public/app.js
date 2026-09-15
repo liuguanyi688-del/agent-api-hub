@@ -558,7 +558,22 @@ function renderDash() {
     <div class="stat-card"><div class="num">${providers.length}</div><div class="lbl">${esc(t('statProviders'))}</div></div>
     <div class="stat-card"><div class="num">${connected} / ${state.status.length}</div><div class="lbl">${esc(t('statConnected'))}</div></div>
     <div class="stat-card"><div class="num">${activeCount}</div><div class="lbl">${esc(t('statActiveLabel'))}</div></div>
-    <div class="stat-card"><div class="num">${esc(passRate)}</div><div class="lbl">${esc(t('statTestPass'))}</div><div class="sub">${esc(t('statTestDetail', { passed, tested: tested.length, untested: providers.length - tested.length }))}</div></div>`;
+    <div class="stat-card"><div class="num">${esc(passRate)}</div><div class="lbl">${esc(t('statTestPass'))}</div><div class="sub">${esc(t('statTestDetail', { passed, tested: tested.length, untested: providers.length - tested.length }))}</div></div>
+    <div class="stat-card" id="statProxy"><div class="num">…</div><div class="lbl">${esc(t('statProxy'))}</div></div>`;
+
+  // 本地代理健康探测(跨端口,依赖 proxy 的 /proxy-health 带 CORS);仅仪表盘可见时探测
+  if (state.view === 'dash') {
+    fetch('http://127.0.0.1:8321/proxy-health', { signal: AbortSignal.timeout(1500) })
+    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then((j) => {
+      const el = document.getElementById('statProxy');
+      if (el) el.innerHTML = `<div class="num" style="color:var(--ok)">●</div><div class="lbl">${esc(t('statProxy'))}</div><div class="sub">${esc(t('proxyRunning', { n: j.requests ?? 0 }))}</div>`;
+    })
+    .catch(() => {
+      const el = document.getElementById('statProxy');
+      if (el) el.innerHTML = `<div class="num" style="color:var(--err)">○</div><div class="lbl">${esc(t('statProxy'))}</div><div class="sub">${esc(t('proxyDown'))}</div>`;
+    });
+  }
 
   $('#dashCli').innerHTML = state.status
     .map((s) => {
