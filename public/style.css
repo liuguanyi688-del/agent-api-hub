@@ -421,7 +421,7 @@ code { font-family: var(--mono); }
   .nav { flex-direction: row; padding: 8px 6px; }
   .sidebar-foot { border-top: none; flex-direction: row; padding: 8px 6px; margin-left: auto; }
   .nav-item span { display: none; }
-  #themeText { display: inline; }
+  #themeText, #langText { display: inline; }
   .layout { margin-left: 0; }
   .searchbox input { width: 100%; }
   .toolbar-left { width: 100%; }

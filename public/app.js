@@ -1,14 +1,9 @@
-/* Agent API Hub 前端逻辑(原生 JS,无构建步骤) */
+/* Agent API Hub 前端逻辑(原生 JS,无构建步骤;文案经 i18n.js 的 t() 输出) */
 'use strict';
 
 const state = { providers: [], status: [], search: '', filterTarget: 'all', filterStatus: 'all', editingId: null };
 
 const TARGET_LABEL = { claude: 'Claude Code', codex: 'Codex CLI', gemini: 'Gemini CLI' };
-const BASE_HINT = {
-  claude: '填根地址(不要带 /v1),CLI 会自动拼 /v1/messages。例:https://api.anthropic.com 或中转站根地址',
-  codex: '通常以 /v1 结尾。例:https://api.openai.com/v1 或中转站给的 OpenAI 兼容地址',
-  gemini: '例:https://generativelanguage.googleapis.com(CLI 自动拼 /v1beta/...)',
-};
 
 /* ---------------- 工具 ---------------- */
 
@@ -43,8 +38,8 @@ function maskKey(key) {
 
 function copyText(text) {
   navigator.clipboard.writeText(text).then(
-    () => toast('已复制到剪贴板', 'ok'),
-    () => toast('复制失败,请手动选择复制', 'err'),
+    () => toast(t('toastCopied'), 'ok'),
+    () => toast(t('toastCopyFailed'), 'err'),
   );
 }
 
@@ -106,18 +101,21 @@ function renderChips() {
       const who = on
         ? esc(s.activeProviderName)
         : s.liveBaseUrl
-          ? '手动/外部配置'
+          ? esc(t('chipExternal'))
           : s.configExists
-            ? '默认配置'
-            : '未配置';
+            ? esc(t('chipDefault'))
+            : esc(t('chipUnset'));
+      const upstream = s.liveBaseUrl
+        ? t('chipTooltipUpstream', { url: s.liveBaseUrl })
+        : t('chipTooltipUpstreamDefault');
       const title = [
         s.file + (s.authFile ? ' + ' + s.authFile : ''),
-        s.liveBaseUrl ? '当前上游:' + s.liveBaseUrl : '当前上游:官方默认',
-        '点击筛选该目标的供应商',
+        upstream,
+        t('chipTooltipFilter'),
       ].join('\n');
       return `<div class="chip ${on ? 'on ' : ''}${s.target}" title="${esc(title)}" data-filter="${s.target}">
         <span class="dot"></span><b>${TARGET_LABEL[s.target]}</b><span class="who">${who}</span>
-        <button class="reset" data-reset="${s.target}" title="移除本工具写入的配置,恢复 CLI 默认">↺</button>
+        <button class="reset" data-reset="${s.target}" title="${esc(t('chipResetTitle'))}">↺</button>
       </div>`;
     })
     .join('');
@@ -140,18 +138,18 @@ function setFilterTarget(v) {
 }
 
 function testCell(p) {
-  const t = p.lastTest;
-  if (!t) return '<span class="test-cell none" title="尚未测试">—</span>';
-  const when = new Date(t.testedAt).toLocaleString('zh-CN', { hour12: false });
-  if (t.ok) return `<span class="test-cell ok" title="测试于 ${esc(when)} · ${esc(t.detail)}">✓ 通过 · ${t.latencyMs}ms</span>`;
-  const short = t.detail.length > 18 ? t.detail.slice(0, 18) + '…' : t.detail;
-  return `<span class="test-cell err" title="测试于 ${esc(when)} · ${esc(t.detail)}">✗ ${esc(short)}</span>`;
+  if (!p.lastTest) return `<span class="test-cell none" title="${esc(t('testUntested'))}">—</span>`;
+  const tt = p.lastTest;
+  const when = t('testPassedAt', { when: new Date(tt.testedAt).toLocaleString('zh-CN', { hour12: false }) });
+  if (tt.ok) return `<span class="test-cell ok" title="${esc(when)} · ${esc(tt.detail)}">${esc(t('testOk', { ms: tt.latencyMs }))}</span>`;
+  const short = tt.detail.length > 18 ? tt.detail.slice(0, 18) + '…' : tt.detail;
+  return `<span class="test-cell err" title="${esc(when)} · ${esc(tt.detail)}">✗ ${esc(short)}</span>`;
 }
 
 function renderTable() {
   const list = visibleProviders();
   $('#tableEmpty').classList.toggle('hidden', state.providers.length > 0);
-  $('#resultInfo').textContent = `共 ${state.providers.length} 个供应商,当前显示 ${list.length} 个`;
+  $('#resultInfo').textContent = t('resultInfo', { total: state.providers.length, shown: list.length });
 
   $('#tbody').innerHTML = list
     .map((p) => {
@@ -160,15 +158,15 @@ function renderTable() {
         <td class="cell-name">${esc(p.name)}${p.note ? `<span class="note" title="${esc(p.note)}">${esc(p.note)}</span>` : ''}</td>
         <td><span class="badge ${p.target}">${TARGET_LABEL[p.target]}</span></td>
         <td><span class="cell-url" title="${esc(p.baseUrl)}">${esc(p.baseUrl)}</span></td>
-        <td><span class="cell-key"><span>${esc(maskKey(p.apiKey))}</span><button class="copy-key" data-act="copykey" data-id="${p.id}" title="复制完整 Key">⧉</button></span></td>
-        <td>${isActive ? '<span class="pill live">当前使用</span>' : '<span class="pill idle">未启用</span>'}</td>
+        <td><span class="cell-key"><span>${esc(maskKey(p.apiKey))}</span><button class="copy-key" data-act="copykey" data-id="${p.id}" title="${esc(t('copyKeyTitle'))}">⧉</button></span></td>
+        <td>${isActive ? `<span class="pill live">${esc(t('pillLive'))}</span>` : `<span class="pill idle">${esc(t('pillIdle'))}</span>`}</td>
         <td>${testCell(p)}</td>
         <td class="td-ops">
-          ${isActive ? '' : `<button class="btn primary small" data-act="activate" data-id="${p.id}">启用</button>`}
-          <button class="btn small" data-act="test" data-id="${p.id}">测试</button>
-          <button class="btn small" data-act="preview" data-id="${p.id}">预览</button>
-          <button class="btn ghost small" data-act="edit" data-id="${p.id}">编辑</button>
-          <button class="btn danger small" data-act="delete" data-id="${p.id}">删除</button>
+          ${isActive ? '' : `<button class="btn primary small" data-act="activate" data-id="${p.id}">${esc(t('btnEnable'))}</button>`}
+          <button class="btn small" data-act="test" data-id="${p.id}">${esc(t('btnTest'))}</button>
+          <button class="btn small" data-act="preview" data-id="${p.id}">${esc(t('btnPreview'))}</button>
+          <button class="btn ghost small" data-act="edit" data-id="${p.id}">${esc(t('btnEdit'))}</button>
+          <button class="btn danger small" data-act="delete" data-id="${p.id}">${esc(t('btnDelete'))}</button>
         </td>
       </tr>`;
     })
@@ -190,17 +188,14 @@ $('#tbody').addEventListener('click', async (e) => {
     if (act === 'activate') {
       const preview = await api(`/api/providers/${p.id}/preview`);
       const fileList = preview.files.map((f) => `<code>${esc(f.path)}</code>`).join('、');
-      const ok = await confirmBox(
-        `启用「${esc(p.name)}」?`,
-        `将合并写入:${fileList}<br/>写入前会自动备份原文件为 <code>*.apihub.bak</code>,其他已有配置保留。`,
-      );
+      const ok = await confirmBox(t('confirmEnableTitle', { name: esc(p.name) }), t('confirmEnableBody', { files: fileList }));
       if (!ok) return;
       btn.disabled = true;
       await api(`/api/providers/${p.id}/activate`, { method: 'POST' });
-      toast(`已启用:${TARGET_LABEL[p.target]} 现在指向「${p.name}」。若 CLI 正在运行,请重启会话生效`, 'ok');
+      toast(t('toastActivated', { target: TARGET_LABEL[p.target], name: p.name }), 'ok');
     } else if (act === 'test') {
       btn.disabled = true;
-      btn.textContent = '测试中…';
+      btn.textContent = t('testing');
       const r = await api(`/api/providers/${p.id}/test`, { method: 'POST' });
       toast(r.ok ? `✓ ${r.detail}(${r.latencyMs}ms)` : `✗ ${r.detail}`, r.ok ? 'ok' : 'err');
     } else if (act === 'preview') {
@@ -208,10 +203,10 @@ $('#tbody').addEventListener('click', async (e) => {
     } else if (act === 'edit') {
       openEdit(p);
     } else if (act === 'delete') {
-      const ok = await confirmBox('删除供应商?', `仅从面板移除「${esc(p.name)}」,不会改写 CLI 配置文件。`);
+      const ok = await confirmBox(t('confirmDeleteTitle'), t('confirmDeleteBody', { name: esc(p.name) }));
       if (!ok) return;
       await api(`/api/providers/${p.id}`, { method: 'DELETE' });
-      toast('已删除', 'ok');
+      toast(t('toastDeleted'), 'ok');
     }
     await refresh();
   } catch (err) {
@@ -235,20 +230,17 @@ $('#filterStatus').addEventListener('change', (e) => {
   renderTable();
 });
 $('#refreshBtn').onclick = async () => {
-  await refresh().catch((e) => toast('刷新失败:' + e.message, 'err'));
-  toast('已刷新', 'ok');
+  await refresh().catch((e) => toast(t('toastRefreshFailed', { msg: e.message }), 'err'));
+  toast(t('toastRefreshed'), 'ok');
 };
 
 /* ---------------- 恢复默认 ---------------- */
 
 async function resetTarget(target) {
-  const ok = await confirmBox(
-    `恢复 ${TARGET_LABEL[target]} 官方默认?`,
-    '将移除本工具写入该 CLI 配置文件中的键(原文件已备份为 <code>*.apihub.bak</code>)。你自己手动加的其他配置不受影响。',
-  );
+  const ok = await confirmBox(t('resetTitle', { target: TARGET_LABEL[target] }), t('resetBody'));
   if (!ok) return;
   await api(`/api/targets/${target}/reset`, { method: 'POST' });
-  toast(`${TARGET_LABEL[target]} 已恢复默认`, 'ok');
+  toast(t('toastResetDone', { target: TARGET_LABEL[target] }), 'ok');
   await refresh();
 }
 
@@ -256,7 +248,7 @@ async function resetTarget(target) {
 
 function openEdit(p) {
   state.editingId = p ? p.id : null;
-  $('#editTitle').textContent = p ? '编辑供应商' : '添加供应商';
+  $('#editTitle').textContent = p ? t('modalEdit') : t('modalAdd');
   $('#f_target').value = p ? p.target : 'claude';
   $('#f_name').value = p ? p.name : '';
   $('#f_baseUrl').value = p ? p.baseUrl : '';
@@ -270,9 +262,9 @@ function openEdit(p) {
 }
 
 function updateFormHints() {
-  const t = $('#f_target').value;
-  $('#f_baseHint').textContent = BASE_HINT[t];
-  $('#f_wireRow').style.display = t === 'codex' ? '' : 'none';
+  const tKey = { claude: 'hintBaseClaude', codex: 'hintBaseCodex', gemini: 'hintBaseGemini' }[$('#f_target').value];
+  $('#f_baseHint').textContent = t(tKey);
+  $('#f_wireRow').style.display = $('#f_target').value === 'codex' ? '' : 'none';
 }
 
 $('#f_target').addEventListener('change', updateFormHints);
@@ -280,7 +272,7 @@ $('#toggleKey').onclick = () => {
   const input = $('#f_apiKey');
   const show = input.type === 'password';
   input.type = show ? 'text' : 'password';
-  $('#toggleKey').textContent = show ? '隐藏' : '显示';
+  $('#toggleKey').textContent = show ? t('btnHide') : t('btnShow');
 };
 
 $('#editForm').addEventListener('submit', async (e) => {
@@ -298,7 +290,7 @@ $('#editForm').addEventListener('submit', async (e) => {
     if (state.editingId) await api(`/api/providers/${state.editingId}`, { method: 'PUT', body });
     else await api('/api/providers', { method: 'POST', body });
     closeModal('editModal');
-    toast('已保存', 'ok');
+    toast(t('toastSaved'), 'ok');
     await refresh();
   } catch (err) {
     toast(err.message, 'err');
@@ -312,7 +304,7 @@ async function openPreview(id) {
   $('#previewBody').innerHTML = data.files
     .map(
       (f) => `<div class="preview-file">
-        <div class="file-path"><span>${esc(f.path)}</span><button class="btn ghost small" data-copy="${esc(f.path)}">复制路径</button></div>
+        <div class="file-path"><span>${esc(f.path)}</span><button class="btn ghost small" data-copy="${esc(f.path)}">${esc(t('btnCopyPath'))}</button></div>
         <div class="action">${esc(f.action)}</div>
         <pre>${esc(f.snippet)}</pre>
       </div>`,
@@ -340,15 +332,21 @@ $('#navHow').onclick = gotoHelp;
 function applyTheme(light) {
   document.body.classList.toggle('light', light);
   localStorage.setItem('apihub-theme', light ? 'light' : 'dark');
-  $('#themeText').textContent = light ? '深色模式' : '浅色模式';
+  $('#themeText').textContent = light ? t('themeDark') : t('themeLight');
   $('#themeIconMoon').classList.toggle('hidden', light);
   $('#themeIconSun').classList.toggle('hidden', !light);
 }
 $('#themeToggle').onclick = () => applyTheme(!document.body.classList.contains('light'));
 applyTheme(localStorage.getItem('apihub-theme') === 'light');
 
+document.addEventListener('langchange', () => {
+  updateFormHints();
+  applyTheme(document.body.classList.contains('light'));
+  render();
+});
+
 /* ---------------- 启动 ---------------- */
 
 $('#addBtn').onclick = () => openEdit(null);
-refresh().catch((e) => toast('加载失败:' + e.message, 'err'));
+refresh().catch((e) => toast(t('toastLoadFailed', { msg: e.message }), 'err'));
 setInterval(() => api('/api/status').then((s) => ((state.status = s), renderChips())).catch(() => {}), 15000);
