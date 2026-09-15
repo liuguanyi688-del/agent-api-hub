@@ -204,6 +204,22 @@ async function main() {
     check('仪表盘视图结构存在', htmlSrc.includes('id="viewDash"') && htmlSrc.includes('id="viewProviders"') && htmlSrc.includes('id="statGrid"'));
     check('通知中心与侧边栏收起结构存在', htmlSrc.includes('id="bellBtn"') && htmlSrc.includes('id="bellMenu"') && htmlSrc.includes('id="collapseBtn"'));
 
+    console.log('── 用量统计接口(/api/usage)');
+    const usageFile = path.join(SANDBOX, 'apihub-data', 'usage.json');
+    await fsp.mkdir(path.join(SANDBOX, 'apihub-data'), { recursive: true });
+    await fsp.writeFile(
+      usageFile,
+      JSON.stringify([
+        { time: '2026-09-16T10:00:00.000Z', target: 'codex', providerId: 'x', providerName: 'Provider A', path: '/v1/chat/completions', model: 'm1', status: 200, latencyMs: 42, usage: { promptTokens: 10, completionTokens: 20 } },
+        { time: '2026-09-16T11:00:00.000Z', target: 'claude', providerId: 'y', providerName: 'Provider B', path: '/v1/messages', model: 'm2', status: 503, latencyMs: 5, usage: null },
+      ]),
+      'utf8',
+    );
+    r = await api('/api/usage');
+    check('GET /api/usage 返回全部记录', r.status === 200 && r.data.requests.length === 2 && r.data.total === 2);
+    r = await api('/api/usage?target=claude');
+    check('usage target 筛选生效', r.data.requests.length === 1 && r.data.requests[0].target === 'claude');
+
     console.log('── 本地代理(转发 + SSE + 用量日志)');
     const httpMod = require('http');
     let seenApiKey = null;

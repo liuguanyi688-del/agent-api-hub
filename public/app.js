@@ -3,6 +3,7 @@
 
 const state = {
   providers: [], status: [], search: '', filterTarget: 'all', filterStatus: 'all', editingId: null, view: 'dash',
+  usage: null, usageFilter: 'all',
   page: 1,
   pageSize: Number(localStorage.getItem('apihub-page-size')) || 20,
   hiddenCols: (() => { try { return JSON.parse(localStorage.getItem('apihub-hidden-cols') || '[]'); } catch { return []; } })(),
@@ -110,6 +111,53 @@ function render() {
   renderChips();
   renderTable();
   renderDash();
+  if (state.usage) renderUsage();
+}
+
+/* ---------------- 使用记录(本地代理日志) ---------------- */
+
+async function loadUsage() {
+  try {
+    state.usage = await api('/api/usage');
+  } catch (e) {
+    toast(e.message, 'err');
+    state.usage = { total: 0, requests: [] };
+  }
+  renderUsage();
+}
+
+function renderUsage() {
+  if (!state.usage) return;
+  const all = state.usage.requests || [];
+  const list = state.usageFilter === 'all' ? all : all.filter((x) => x.target === state.usageFilter);
+
+  const okCount = list.filter((x) => x.status >= 200 && x.status < 400).length;
+  const errCount = list.length - okCount;
+  const tokSum = list.reduce((s, x) => s + (x.usage?.promptTokens || 0) + (x.usage?.completionTokens || 0), 0);
+  const latList = list.filter((x) => typeof x.latencyMs === 'number');
+  const avgLat = latList.length ? Math.round(latList.reduce((s, x) => s + x.latencyMs, 0) / latList.length) + 'ms' : '—';
+
+  $('#usageStats').innerHTML = `
+    <div class="stat-card"><div class="num">${list.length}</div><div class="lbl">${esc(t('usageTotal'))}</div></div>
+    <div class="stat-card"><div class="num">${okCount}</div><div class="lbl">${esc(t('usageOk'))}</div></div>
+    <div class="stat-card"><div class="num">${errCount}</div><div class="lbl">${esc(t('usageErr'))}</div></div>
+    <div class="stat-card"><div class="num">${tokSum}</div><div class="lbl">${esc(t('usageTokens'))}</div></div>
+    <div class="stat-card"><div class="num">${esc(avgLat)}</div><div class="lbl">${esc(t('usageAvgLatency'))}</div></div>`;
+
+  const cols = [
+    ['thTime', (x) => esc(new Date(x.time).toLocaleString('zh-CN', { hour12: false }))],
+    ['thTarget', (x) => `<span class="badge ${x.target}">${TARGET_LABEL[x.target] || x.target}</span>`],
+    ['thProvider', (x) => esc(x.providerName || '—')],
+    ['thModel', (x) => esc(x.model || '—')],
+    ['thPath', (x) => `<span class="cell-url">${esc(x.path)}</span>`],
+    ['thStatus', (x) => `<span class="test-cell ${x.status >= 200 && x.status < 400 ? 'ok' : 'err'}">${x.status}</span>`],
+    ['thLatency', (x) => (typeof x.latencyMs === 'number' ? x.latencyMs + 'ms' : '—')],
+    ['thPrompt', (x) => (x.usage?.promptTokens ?? '—')],
+    ['thCompletion', (x) => (x.usage?.completionTokens ?? '—')],
+  ];
+  $('#usageHead').innerHTML = cols.map(([k]) => `<th>${esc(t(k))}</th>`).join('');
+  $('#usageBody').innerHTML = list.slice(0, 200).map((x) => `<tr>${cols.map(([, fn]) => `<td>${fn(x)}</td>`).join('')}</tr>`).join('');
+  $('#usageEmpty').classList.toggle('hidden', list.length > 0);
 }
 
 function renderChips() {
@@ -482,15 +530,21 @@ applySidebar(localStorage.getItem('apihub-sidebar') === 'collapsed');
 /* ---------------- 侧边栏 / 视图切换 / 主题 ---------------- */
 
 function switchView(view) {
-  state.view = view === 'providers' ? 'providers' : 'dash';
-  const isDash = state.view === 'dash';
-  $('#viewDash').classList.toggle('hidden', !isDash);
-  $('#viewProviders').classList.toggle('hidden', isDash);
-  $('#navDash').classList.toggle('active', isDash);
-  $('#navMain').classList.toggle('active', !isDash);
-  $('#viewTitle').textContent = isDash ? t('dashTitle') : t('pageTitle');
-  $('#viewSubtitle').textContent = isDash ? t('dashSubtitle') : t('pageSubtitle');
-  if (!isDash) renderTable();
+  state.view = ['providers', 'usage'].includes(view) ? view : 'dash';
+  const views = { dash: 'viewDash', providers: 'viewProviders', usage: 'viewUsage' };
+  for (const [name, id] of Object.entries(views)) $('#' + id).classList.toggle('hidden', name !== state.view);
+  $('#navDash').classList.toggle('active', state.view === 'dash');
+  $('#navMain').classList.toggle('active', state.view === 'providers');
+  $('#navUsage').classList.toggle('active', state.view === 'usage');
+  const titles = {
+    dash: ['dashTitle', 'dashSubtitle'],
+    providers: ['pageTitle', 'pageSubtitle'],
+    usage: ['usageTitle', 'usageSubtitle'],
+  };
+  $('#viewTitle').textContent = t(titles[state.view][0]);
+  $('#viewSubtitle').textContent = t(titles[state.view][1]);
+  if (state.view === 'providers') renderTable();
+  if (state.view === 'dash') renderDash();
 }
 
 function renderDash() {
@@ -559,6 +613,16 @@ $('#navMain').onclick = (e) => {
   switchView('providers');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
+$('#navUsage').onclick = (e) => {
+  e.preventDefault();
+  switchView('usage');
+  loadUsage();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+$('#usageTarget').addEventListener('change', (e) => {
+  state.usageFilter = e.target.value;
+  renderUsage();
+});
 const gotoHelp = (e) => {
   e.preventDefault();
   switchView('providers');

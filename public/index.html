@@ -22,6 +22,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
         <span data-i18n="navProviders">供应商管理</span>
       </a>
+      <a class="nav-item" href="#" id="navUsage">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.8L7 14.3"/></svg>
+        <span data-i18n="navUsage">使用记录</span>
+      </a>
       <a class="nav-item" href="#" id="navGuide">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
         <span data-i18n="navGuide">快速上手</span>
@@ -84,6 +88,32 @@
           <div class="dash-panel">
             <h3 data-i18n="dashRecentTitle">最近测试</h3>
             <div id="dashRecent"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="viewUsage" class="hidden">
+        <div class="stat-grid" id="usageStats"></div>
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <select id="usageTarget">
+              <option value="all" data-i18n="usageAll">全部目标</option>
+              <option value="claude">Claude Code</option>
+              <option value="codex">Codex CLI</option>
+              <option value="gemini">Gemini CLI</option>
+            </select>
+            <span class="hint" data-i18n="usageHint"></span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="ptable">
+            <thead><tr id="usageHead"></tr></thead>
+            <tbody id="usageBody"></tbody>
+          </table>
+          <div id="usageEmpty" class="table-empty hidden">
+            <div class="empty-icon">📉</div>
+            <h2 data-i18n="usageEmptyTitle">暂无请求记录</h2>
+            <p data-i18n="usageEmptyDesc">启用一个供应商后,把 CLI 的 Base URL 指向本地代理 http://127.0.0.1:8321,请求明细会出现在这里。</p>
           </div>
         </div>
       </section>

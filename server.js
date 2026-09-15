@@ -526,6 +526,17 @@ async function route(req, res) {
   /* ----- API ----- */
   if (parts[0] === 'api') {
     if (req.method === 'GET' && url.pathname === '/api/status') return send(res, 200, await statusOverview());
+    if (req.method === 'GET' && url.pathname === '/api/usage') {
+      // 本地代理的请求日志:每请求现读 usage.json(由 proxy.js 写入)
+      let requests = [];
+      try {
+        requests = JSON.parse(await fsp.readFile(path.join(DATA_DIR, 'usage.json'), 'utf8'));
+        if (!Array.isArray(requests)) requests = [];
+      } catch { /* 尚无记录 */ }
+      const targetFilter = url.searchParams.get('target');
+      if (targetFilter && targetFilter !== 'all') requests = requests.filter((x) => x.target === targetFilter);
+      return send(res, 200, { total: requests.length, requests });
+    }
     if (req.method === 'GET' && url.pathname === '/api/providers') return send(res, 200, store.providers);
 
     if (req.method === 'POST' && url.pathname === '/api/providers') {
