@@ -204,6 +204,106 @@ async function main() {
     check('仪表盘视图结构存在', htmlSrc.includes('id="viewDash"') && htmlSrc.includes('id="viewProviders"') && htmlSrc.includes('id="statGrid"'));
     check('通知中心与侧边栏收起结构存在', htmlSrc.includes('id="bellBtn"') && htmlSrc.includes('id="bellMenu"') && htmlSrc.includes('id="collapseBtn"'));
 
+    console.log('── 本地代理(转发 + SSE + 用量日志)');
+    const httpMod = require('http');
+    let seenApiKey = null;
+    const mockUp = httpMod.createServer((req, res) => {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        if (req.url.startsWith('/v1/messages')) {
+          seenApiKey = req.headers['x-api-key'] || null;
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ id: 'msg_1', usage: { input_tokens: 5, output_tokens: 7 } }));
+          return;
+        }
+        let stream = false;
+        try { stream = JSON.parse(body || '{}').stream === true; } catch { /* 非 JSON */ }
+        if (stream) {
+          res.writeHead(200, { 'content-type': 'text/event-stream' });
+          res.write('data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n');
+          res.write('data: {"choices":[],"usage":{"prompt_tokens":11,"completion_tokens":13}}\n\n');
+          res.end('data: [DONE]\n\n');
+        } else {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ choices: [{ message: { content: 'ok' } }], usage: { prompt_tokens: 11, completion_tokens: 13 } }));
+        }
+      });
+    });
+    await new Promise((r) => mockUp.listen(0, '127.0.0.1', r));
+    const mockPort = mockUp.address().port;
+
+    const proxyDataDir = path.join(SANDBOX, 'proxy-data');
+    await fsp.mkdir(proxyDataDir, { recursive: true });
+    await fsp.writeFile(
+      path.join(proxyDataDir, 'providers.json'),
+      JSON.stringify({
+        providers: [
+          { id: 'p-codex', target: 'codex', name: 'mock-openai', baseUrl: `http://127.0.0.1:${mockPort}/v1`, apiKey: 'sk-mock' },
+          { id: 'p-claude', target: 'claude', name: 'mock-anthropic', baseUrl: `http://127.0.0.1:${mockPort}`, apiKey: 'sk-mock' },
+        ],
+        active: { codex: 'p-codex', claude: 'p-claude', gemini: null },
+      }),
+      'utf8',
+    );
+    const proxyProc = spawn(process.execPath, [path.join(ROOT, 'proxy.js')], {
+      env: { ...process.env, APIHUB_PROXY_PORT: '8393', APIHUB_DATA_DIR: proxyDataDir },
+      stdio: 'ignore',
+    });
+    const killProxy = () => proxyProc.kill();
+    process.on('exit', killProxy);
+    try {
+      let proxyUp = false;
+      for (let i = 0; i < 40 && !proxyUp; i++) {
+        try {
+          await fetch('http://127.0.0.1:8393/v1/models');
+          proxyUp = true;
+        } catch {
+          await new Promise((r2) => setTimeout(r2, 100));
+        }
+      }
+      check('代理进程可访问', proxyUp);
+
+      const r1 = await fetch('http://127.0.0.1:8393/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model: 'mock-model', messages: [] }),
+      });
+      const j1 = await r1.json();
+      check('OpenAI 非流式转发正常', r1.status === 200 && j1.choices?.[0]?.message?.content === 'ok');
+
+      const r2 = await fetch('http://127.0.0.1:8393/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model: 'mock-model', stream: true }),
+      });
+      const sseText = await r2.text();
+      check('SSE 流式透传', r2.status === 200 && String(r2.headers.get('content-type')).includes('text/event-stream') && sseText.includes('[DONE]'));
+
+      const r3 = await fetch('http://127.0.0.1:8393/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-x', max_tokens: 1, messages: [] }),
+      });
+      const j3 = await r3.json();
+      check('Anthropic 转发并注入 x-api-key', r3.status === 200 && seenApiKey === 'sk-mock' && j3.usage?.input_tokens === 5);
+
+      const r4 = await fetch('http://127.0.0.1:8393/v1beta/models');
+      check('无激活供应商时返回 503', r4.status === 503);
+
+      const usageList = JSON.parse(await fsp.readFile(path.join(proxyDataDir, 'usage.json'), 'utf8'));
+      check(
+        '用量日志记录且解析 usage',
+        usageList.length >= 3 &&
+          usageList.some((u) => u.usage?.promptTokens === 11 && u.usage?.completionTokens === 13) &&
+          usageList.some((u) => u.usage?.promptTokens === 5 && u.usage?.completionTokens === 7) &&
+          usageList.every((u) => typeof u.latencyMs === 'number'),
+      );
+    } finally {
+      killProxy();
+      mockUp.close();
+    }
+
     console.log(`\n通过 ${passed} 项检查${process.exitCode ? '(存在失败!)' : ' ✅'}`);
   } finally {
     shutdown();

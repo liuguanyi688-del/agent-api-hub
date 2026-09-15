@@ -605,3 +605,9 @@ async function route(req, res) {
     console.log(`供应商数据文件: ${STORE_FILE}`);
   });
 })();
+
+// 可选:随面板一起启动本地代理网关(--proxy 或环境变量 APIHUB_PROXY=1)
+if (process.argv.includes('--proxy') || process.env.APIHUB_PROXY === '1') {
+  const { startProxy } = require('./proxy');
+  startProxy({ port: Number(process.env.APIHUB_PROXY_PORT || 8321), dataDir: DATA_DIR });
+}
