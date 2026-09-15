@@ -14,7 +14,11 @@
       <div class="brand-text"><b>Agent API Hub</b><span>CLI 供应商接入</span></div>
     </div>
     <nav class="nav">
-      <a class="nav-item active" href="#" id="navMain">
+      <a class="nav-item active" href="#" id="navDash">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+        <span data-i18n="navDash">仪表盘</span>
+      </a>
+      <a class="nav-item" href="#" id="navMain">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
         <span data-i18n="navProviders">供应商管理</span>
       </a>
@@ -47,13 +51,28 @@
   <div class="layout">
     <header class="topbar">
       <div class="page-title">
-        <h1 data-i18n="pageTitle">供应商管理</h1>
-        <p data-i18n="pageSubtitle">管理接入 Claude Code / Codex / Gemini CLI 的 API 供应商</p>
+        <h1 id="viewTitle">仪表盘</h1>
+        <p id="viewSubtitle">站点与 CLI 接入总览</p>
       </div>
       <div id="statusChips" class="chips" aria-label="各 CLI 当前接入状态"></div>
     </header>
 
     <main>
+      <section id="viewDash" class="">
+        <div class="stat-grid" id="statGrid"></div>
+        <div class="dash-panels">
+          <div class="dash-panel">
+            <h3 data-i18n="dashCliTitle">CLI 接入状态</h3>
+            <div id="dashCli"></div>
+          </div>
+          <div class="dash-panel">
+            <h3 data-i18n="dashRecentTitle">最近测试</h3>
+            <div id="dashRecent"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="viewProviders" class="hidden">
       <div class="toolbar">
         <div class="toolbar-left">
           <div class="searchbox">
@@ -127,6 +146,7 @@
         <summary data-i18n="helpSummary">快速上手 &amp; 工作原理 &amp; 安全说明</summary>
         <div class="help-body" data-i18n-html="helpBody"></div>
       </details>
+      </section>
     </main>
   </div>
 

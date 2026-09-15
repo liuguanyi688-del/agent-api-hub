@@ -374,6 +374,45 @@ main { padding: 20px 28px 48px; flex: 1; }
 .files code { font-family: var(--mono); font-size: 11.5px; color: var(--accent); }
 code { font-family: var(--mono); }
 
+/* ---------- 仪表盘 ---------- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.stat-card .num { font-size: 27px; font-weight: 700; line-height: 1.2; }
+.stat-card .lbl { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
+.stat-card .sub { font-size: 11.5px; color: var(--muted); margin-top: 7px; }
+.dash-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.dash-panel {
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.dash-panel h3 { margin: 0 0 8px; font-size: 13.5px; }
+.dash-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12.5px;
+}
+.dash-row:last-child { border-bottom: none; }
+.dash-row .k { color: var(--muted); display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dash-row .k .mono { font-family: var(--mono); font-size: 11.5px; }
+.dash-row .v { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.dash-row .v .mono { font-family: var(--mono); font-size: 11.5px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 900px) {
+  .dash-panels { grid-template-columns: 1fr; }
+}
+
 /* ---------- 弹窗 ---------- */
 .modal {
   position: fixed; inset: 0; z-index: 50;

@@ -2,7 +2,7 @@
 'use strict';
 
 const state = {
-  providers: [], status: [], search: '', filterTarget: 'all', filterStatus: 'all', editingId: null,
+  providers: [], status: [], search: '', filterTarget: 'all', filterStatus: 'all', editingId: null, view: 'dash',
   page: 1,
   pageSize: Number(localStorage.getItem('apihub-page-size')) || 20,
   hiddenCols: (() => { try { return JSON.parse(localStorage.getItem('apihub-hidden-cols') || '[]'); } catch { return []; } })(),
@@ -109,6 +109,7 @@ function visibleProviders() {
 function render() {
   renderChips();
   renderTable();
+  renderDash();
 }
 
 function renderChips() {
@@ -406,14 +407,89 @@ async function openPreview(id) {
   openModal('previewModal');
 }
 
-/* ---------------- 侧边栏 / 主题 ---------------- */
+/* ---------------- 侧边栏 / 视图切换 / 主题 ---------------- */
 
+function switchView(view) {
+  state.view = view === 'providers' ? 'providers' : 'dash';
+  const isDash = state.view === 'dash';
+  $('#viewDash').classList.toggle('hidden', !isDash);
+  $('#viewProviders').classList.toggle('hidden', isDash);
+  $('#navDash').classList.toggle('active', isDash);
+  $('#navMain').classList.toggle('active', !isDash);
+  $('#viewTitle').textContent = isDash ? t('dashTitle') : t('pageTitle');
+  $('#viewSubtitle').textContent = isDash ? t('dashSubtitle') : t('pageSubtitle');
+  if (!isDash) renderTable();
+}
+
+function renderDash() {
+  const providers = state.providers;
+  const tested = providers.filter((p) => p.lastTest);
+  const passed = tested.filter((p) => p.lastTest.ok).length;
+  const connected = state.status.filter((s) => s.managedByHub && s.activeProviderName).length;
+  const activeCount = Object.keys(TARGET_LABEL).filter((tg) => activeIdOf(tg)).length;
+  const passRate = tested.length ? Math.round((passed / tested.length) * 100) + '%' : '—';
+  $('#statGrid').innerHTML = `
+    <div class="stat-card"><div class="num">${providers.length}</div><div class="lbl">${esc(t('statProviders'))}</div></div>
+    <div class="stat-card"><div class="num">${connected} / ${state.status.length}</div><div class="lbl">${esc(t('statConnected'))}</div></div>
+    <div class="stat-card"><div class="num">${activeCount}</div><div class="lbl">${esc(t('statActiveLabel'))}</div></div>
+    <div class="stat-card"><div class="num">${esc(passRate)}</div><div class="lbl">${esc(t('statTestPass'))}</div><div class="sub">${esc(t('statTestDetail', { passed, tested: tested.length, untested: providers.length - tested.length }))}</div></div>`;
+
+  $('#dashCli').innerHTML = state.status
+    .map((s) => {
+      const count = providers.filter((p) => p.target === s.target).length;
+      const who = s.managedByHub && s.activeProviderName
+        ? esc(s.activeProviderName)
+        : s.liveBaseUrl
+          ? esc(t('chipExternal'))
+          : s.configExists
+            ? esc(t('chipDefault'))
+            : esc(t('chipUnset'));
+      const files = s.file + (s.authFile ? ' + ' + s.authFile : '');
+      const shortFile = files.split(/[\\/]/).slice(-2).join('/');
+      const upstream = s.liveBaseUrl
+        ? `<span class="mono" title="${esc(s.liveBaseUrl)}">${esc(s.liveBaseUrl)}</span>`
+        : `<span>${esc(t('chipTooltipUpstreamDefault'))}</span>`;
+      return `<div class="dash-row">
+        <span class="k"><span class="badge ${s.target}">${TARGET_LABEL[s.target]}</span><span class="mono" title="${esc(files)}">${esc(shortFile)}</span></span>
+        <span class="v">${who}<span class="mono">${upstream}</span><span class="pill idle">${count}</span></span>
+      </div>`;
+    })
+    .join('');
+
+  const recent = providers
+    .filter((p) => p.lastTest)
+    .sort((a, b) => new Date(b.lastTest.testedAt) - new Date(a.lastTest.testedAt))
+    .slice(0, 5);
+  $('#dashRecent').innerHTML = recent.length
+    ? recent
+        .map((p) => {
+          const tt = p.lastTest;
+          const result = tt.ok
+            ? `<span class="test-cell ok">${esc(t('testOk', { ms: tt.latencyMs }))}</span>`
+            : `<span class="test-cell err" title="${esc(tt.detail)}">✗ ${esc(tt.detail.length > 14 ? tt.detail.slice(0, 14) + '…' : tt.detail)}</span>`;
+          const when = new Date(tt.testedAt).toLocaleString('zh-CN', { hour12: false });
+          return `<div class="dash-row">
+            <span class="k"><span class="badge ${p.target}">${TARGET_LABEL[p.target]}</span>${esc(p.name)}</span>
+            <span class="v">${result}<span class="mono" title="${esc(t('testPassedAt', { when }))}">${esc(when)}</span></span>
+          </div>`;
+        })
+        .join('')
+    : `<div class="dash-row"><span class="k">${esc(t('dashNoTest'))}</span></div>`;
+}
+
+$('#navDash').onclick = (e) => {
+  e.preventDefault();
+  switchView('dash');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 $('#navMain').onclick = (e) => {
   e.preventDefault();
+  switchView('providers');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 const gotoHelp = (e) => {
   e.preventDefault();
+  switchView('providers');
   const help = $('#helpBlock');
   help.open = true;
   help.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -435,11 +511,13 @@ document.addEventListener('langchange', () => {
   updateFormHints();
   applyTheme(document.body.classList.contains('light'));
   buildColMenu();
+  switchView(state.view);
   render();
 });
 
 /* ---------------- 启动 ---------------- */
 
 $('#addBtn').onclick = () => openEdit(null);
+switchView(state.view);
 refresh().catch((e) => toast(t('toastLoadFailed', { msg: e.message }), 'err'));
-setInterval(() => api('/api/status').then((s) => ((state.status = s), renderChips())).catch(() => {}), 15000);
+setInterval(() => api('/api/status').then((s) => ((state.status = s), renderChips(), renderDash())).catch(() => {}), 15000);
