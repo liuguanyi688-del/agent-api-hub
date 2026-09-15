@@ -2,7 +2,7 @@
 
 把任意 **OpenAI / Anthropic / Gemini 兼容 API**(官方或中转站)一键接入本地 CLI Agent 的管理面板,支持 **Claude Code、Codex CLI、Gemini CLI**。
 
-一个理解"配置切换器"原理的练手小项目:cc-switch 的核心逻辑 + 供应商连通性测试,零依赖、单命令运行。
+一个理解"配置切换器"原理的练手项目:cc-switch 的核心逻辑 + 供应商连通性测试,零依赖、单命令运行。[English](README.en.md)
 
 ## 快速开始
 
